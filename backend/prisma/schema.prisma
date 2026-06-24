@@ -1,0 +1,85 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Project {
+  id                  String      @id
+  name                String
+  description         String?
+  startDate           DateTime
+  endDate             DateTime
+  expectedProgress    Float       // Expected completion % based on timeline
+  actualProgress      Float       // Actual completion % from tasks
+  healthScore         Int         // 0-100
+  healthStatus        String      // HEALTHY, WARNING, CRITICAL
+  managerEmail        String
+  projectType         String?
+  isActive            String?
+  percentCompleteMethod String?
+  priority            String?
+  department          String?
+  lastSynced          DateTime    @default(now())
+  tasks               Task[]
+  healthLogs          HealthLog[]
+  alertLogs           AlertLog[]
+}
+
+model Task {
+  id                   String   @id
+  projectId            String
+  title                String
+  completionPercentage Float
+  startDate            DateTime
+  endDate              DateTime
+  isCritical           Boolean
+  priority             String   // LOW, MEDIUM, HIGH
+  assignee             String
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model HealthLog {
+  id              String   @id @default(uuid())
+  projectId       String
+  timestamp       DateTime @default(now())
+  healthScore     Int
+  healthStatus    String
+  aiReason        String?
+  aiRisks         String?  // JSON string or long text listing risks
+  aiSuggestions   String?  // JSON string or long text listing recommendations
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model AlertLog {
+  id          String   @id @default(uuid())
+  projectId   String
+  timestamp   DateTime @default(now())
+  statusFrom  String
+  statusTo    String
+  recipients  String
+  channel     String   // EMAIL, SLACK, TEAMS
+  message     String
+  success     Boolean
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Config {
+  id                     String  @id @default("default")
+  thresholdWarning       Int     @default(80)  // Score below this -> Warning
+  thresholdCritical      Int     @default(60)  // Score below this -> Critical
+  weightOverdueTask      Int     @default(5)   // Deduction for overdue task (>3 days)
+  weightCriticalOverdue  Int     @default(10)  // Deduction for critical overdue task
+  weightMilestoneDelay   Int     @default(15)  // Deduction for timeline progress mismatch
+  weightProgressVariance Int     @default(20)  // Deduction for progress variance > 20%
+  emailAdmin             String  @default("admin@company.com")
+  smtpHost               String  @default("smtp.mailtrap.io")
+  smtpPort               Int     @default(2525)
+  smtpUser               String  @default("")
+  smtpPass               String  @default("")
+  slackWebhookUrl        String  @default("")
+  aiPromptTemplate       String  @default("Analyze the project health for '{{projectName}}'. Health Score: {{healthScore}}, Status: {{healthStatus}}. Tasks: {{tasksSummary}}.\nProvide:\n1. Reason for status\n2. Key risks\n3. Corrective recommendations.")
+}
